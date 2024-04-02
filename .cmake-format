@@ -1,0 +1,23 @@
+format:
+  tab_size: 2
+  line_width: 100
+  dangle_parens: true
+  max_lines_hwrap: 0
+
+markup:
+  enable_markup: false
+
+parse:
+  additional_commands:
+    list:
+      pargs:
+        nargs: 1
+      kwargs:
+        APPEND: 1
+        REMOVE_ITEM: 1
+    set:
+      pargs:
+        nargs: 2
+    add_subdirectory:
+      pargs:
+        nargs: 1
