@@ -4,16 +4,16 @@
 from conan import ConanFile
 from conan.tools.cmake import CMake, CMakeToolchain, CMakeDeps, cmake_layout
 
-class SomeConan(ConanFile):
+class {{name|capitalize}}Conan(ConanFile):
     minimum_conan_version = '2.2'
-    name = 'some' # stub
-    version = '1.0.0' # stub 
+    name = '{{name}}'
+    version = '{{version}}'
+    license = "{{license|default("MIT", true)}}"
 
-    license = "MIT"
     author = "Denys Valchuk <ZHZhbGNodWtAZ21haWwuY29tCg==>"
-    url = "https://github.com/valden/conan-some" # stub
-    description = "Some test package with tests"
-    topics = ("some", "algo", "playground")
+    url = "https://github.com/valden/conan-some"
+    description = "C++ test package with tests"
+    topics = ("{{name}}", "algo", "playground")
 
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False],
@@ -60,4 +60,4 @@ class SomeConan(ConanFile):
         cmake.install()
 
     def package_info(self):
-        self.cpp_info.libs = ["some"]
+        self.cpp_info.libs = ["{{name}}"]
