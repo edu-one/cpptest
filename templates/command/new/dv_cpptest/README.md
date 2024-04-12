@@ -5,9 +5,9 @@ Initial template for C++ small test projects
 ├── CMakeLists.txt
 ├── README.md
 ├── include      # Header files
-│   └── some.h
+│   └── {{name}}.h
 ├── src          # Source files
-│   └── some.cpp
+│   └── {{name}}.cpp
 ├── tests        # Various tests
 │   ├── integration
 │   ├── performance

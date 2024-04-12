@@ -2,14 +2,15 @@
 # ZHZhbGNodWtAZ21haWwuY29tCg==
 
 cmake_minimum_required(VERSION 3.25)
-project(some)
+
+project({{name}} VERSION {{version}} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
 option(WITH_TESTS "build tests?" ON)
 
-add_library(some src/some.cpp)
-target_include_directories(some PUBLIC include)
+add_library({{name}} src/{{name}}.cpp)
+target_include_directories({{name}} PUBLIC include)
 
 if(WITH_TESTS)
   list(APPEND CMAKE_CTEST_ARGUMENTS "--output-on-failure")

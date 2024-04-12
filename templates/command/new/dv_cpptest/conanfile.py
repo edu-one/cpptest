@@ -6,12 +6,13 @@ from conan.tools.cmake import CMake, CMakeToolchain, CMakeDeps, cmake_layout
 
 class {{name|capitalize}}Conan(ConanFile):
     minimum_conan_version = '2.2'
+
     name = '{{name}}'
     version = '{{version}}'
     license = "{{license|default("MIT", true)}}"
 
     author = "Denys Valchuk <ZHZhbGNodWtAZ21haWwuY29tCg==>"
-    url = "https://github.com/valden/conan-some"
+    url = "https://github.com/valden/{{name}}"
     description = "C++ test package with tests"
     topics = ("{{name}}", "algo", "playground")
 

@@ -7,7 +7,7 @@ add_executable(factorial_test factorial_test.cpp)
 
 find_package(GTest)
 target_link_libraries(factorial_test 
-        PRIVATE some
+        PRIVATE {{name}}
         gtest::gtest)
 
 include(GoogleTest)

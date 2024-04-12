@@ -2,12 +2,12 @@
  * ZHZhbGNodWtAZ21haWwuY29tCg== 
  */
 
-#ifndef __DV_INCLUDE_SOME_H__
-#define __DV_INCLUDE_SOME_H__
+#ifndef __DV_INCLUDE_{{name|upper}}_H__
+#define __DV_INCLUDE_{{name|upper}}_H__
 
-namespace dv::some
+namespace dv::{{name}}
 {
     int factorial(int n);
 }
 
-#endif // __DV_INCLUDE_SOME_H__
+#endif // __DV_INCLUDE_{{name|upper}}_H__
