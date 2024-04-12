@@ -1,4 +1,4 @@
-Initial template for C++ small test projects
+{{name}} C++ small test project
 
 # Project layout
 ```
