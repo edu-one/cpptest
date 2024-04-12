@@ -1,4 +1,5 @@
 {{name}} C++ small test project
+===============================
 
 # Project layout
 ```
@@ -22,7 +23,6 @@ pip install -r requirements.txt
 
 # Build
 ```bash
-mkdir build
 conan install . --build=missing
 cmake --preset conan-release
 cmake --build --preset conan-release
@@ -32,3 +32,7 @@ cmake --build --preset conan-release
 ```bash
 cmake --build --preset conan-release -t test
 ```
+
+
+>📝
+> Based on the template https://github.com/valden/cpptest
