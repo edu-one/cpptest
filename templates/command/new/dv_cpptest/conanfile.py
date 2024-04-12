@@ -8,7 +8,7 @@ class {{name|capitalize}}Conan(ConanFile):
     minimum_conan_version = '2.2'
 
     name = '{{name}}'
-    version = '{{version}}'
+    version = '{{version|default("0.0.1", true)}}'
     license = "{{license|default("MIT", true)}}"
 
     author = "Denys Valchuk <ZHZhbGNodWtAZ21haWwuY29tCg==>"
