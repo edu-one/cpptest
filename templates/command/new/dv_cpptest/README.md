@@ -24,13 +24,13 @@ pip install -r requirements.txt
 # Build
 ```bash
 conan install . --build=missing
-cmake --preset conan-release
-cmake --build --preset conan-release
+cmake --preset conan-debug
+cmake --build --preset conan-debug
 ```
 
 # Run tests
 ```bash
-cmake --build --preset conan-release -t test
+cmake --build --preset conan-debug -t test
 ```
 
 
