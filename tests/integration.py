@@ -15,7 +15,7 @@ class TestTemplate(unittest.TestCase):
 
     def setUp(self):
         pid = os.getpid()
-        self.test_name = f"stubname-{pid}"
+        self.test_name = f"stubname{pid}"
         self.test_version = "2.7.1"
         self.test_dir = os.path.join(TestTemplate.cwd(), "build", "tests", self.test_name)
         # Create the test directory (remove if already exists)
@@ -66,7 +66,22 @@ class TestTemplate(unittest.TestCase):
             self.assertIn(f"project({self.test_name} VERSION {self.test_version} LANGUAGES CXX)", content)
             self.assertIn(f"add_library({self.test_name} src/{self.test_name}.cpp)", content)
             self.assertIn(f"target_include_directories({self.test_name} PUBLIC include)", content)
-
+        
+        # Check if new project can be built & tested
+        build_dir = os.path.join(self.test_dir, "build")
+        # configure dependencies of the project
+        configure_command = ["conan", "install", ".", "--build=missing"]
+        run(configure_command, cwd=self.test_dir)
+        # configure the project
+        preset_name = "conan-debug"
+        build_command = ["cmake", "--preset", preset_name]
+        run(build_command, cwd=self.test_dir)
+        # build the project
+        build_command = ["cmake", "--build", "--preset", preset_name]
+        run(build_command, cwd=self.test_dir)
+        # test the project
+        test_command = ["ctest", "--preset", preset_name]
+        run(test_command, cwd=self.test_dir)
 
 
 if __name__ == "__main__":
