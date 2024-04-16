@@ -2,9 +2,9 @@
 build
 *.png
 CMakeUserPresets.json
-/tests
-/.dockerignore
-/.gitignore
-/Dockerfile
-/README.md
-/LICENSE
+tests/*
+.dockerignore
+.gitignore
+Dockerfile
+README.md
+LICENSE
