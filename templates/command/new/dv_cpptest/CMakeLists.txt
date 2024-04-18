@@ -1,7 +1,7 @@
 # Copyright (C) Denys Valchuk - All Rights Reserved
 # ZHZhbGNodWtAZ21haWwuY29tCg==
 
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.23)
 
 project({{name}} VERSION {{version}} LANGUAGES CXX)
 
