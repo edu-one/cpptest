@@ -13,7 +13,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
     - name: Build the Docker image
       run: docker build -t dv_cpptest_1 .
     - name: Run the Docker image
