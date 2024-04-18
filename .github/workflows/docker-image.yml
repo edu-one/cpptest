@@ -9,12 +9,12 @@ on:
 jobs:
 
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - name: Build the Docker image
-      run: docker build -t dv_cpptest_1 .
-    - name: Run the Docker image
-      run: docker run --rm -it dv_cpptest_1
+      # Checks-out repository under $GITHUB_WORKSPACE, so job can access it
+      - uses: actions/checkout@v2
+      - name: Build the Docker image
+        run: docker build -t dv_cpptest_1 .
+      - name: Run the Docker image
+        run: docker run --rm -it dv_cpptest_1
  
