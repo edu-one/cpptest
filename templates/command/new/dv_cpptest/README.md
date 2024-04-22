@@ -30,7 +30,7 @@ cmake --build --preset conan-debug
 
 # Run tests
 ```bash
-cmake --build --preset conan-debug -t test
+ctest --preset conan-debug
 ```
 
 

@@ -3,7 +3,7 @@
 
 cmake_minimum_required(VERSION 3.23)
 
-project({{name}} VERSION {{version}} LANGUAGES CXX)
+project({{name}} VERSION {{version|default("0.0.1", true)}} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 
