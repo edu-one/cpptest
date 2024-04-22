@@ -6,10 +6,14 @@
 
 #include <stdexcept>
 
-int dv::{{name}}::factorial(int n) {
+namespace dv::{{name}} {
+
+int factorial(int n) {
     if (n < 0)
         throw std::invalid_argument("Factorial of negative number is undefined");
     if (n == 0)
         return 1;
     return n * factorial(n - 1);
 }
+
+} // namespace dv::{{name}}

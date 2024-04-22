@@ -7,6 +7,6 @@
 
 namespace dv::{{name}} {
     int factorial(int n);
-}
+} // namespace dv::{{name}}
 
 #endif // __DV_INCLUDE_{{name|upper}}_H__
