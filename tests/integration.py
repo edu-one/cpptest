@@ -94,6 +94,9 @@ class TestTemplate(unittest.TestCase):
             "tests/CMakeLists.txt",
             "tests/unit/CMakeLists.txt",
             f"tests/unit/{self.test_name}_test.cpp",
+            ".github/workflows/unit-tests.yml",
+            ".vscode/settings.json",
+            ".vscode/launch.json",
         ]
 
         # Check if expected files exist
