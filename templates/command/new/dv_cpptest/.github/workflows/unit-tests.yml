@@ -15,7 +15,7 @@ jobs:
       image: ubuntu:22.04
     steps:
       # Checks-out repository under $GITHUB_WORKSPACE, so job can access it
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Install essential packages for C++ development
         run: |
