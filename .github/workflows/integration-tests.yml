@@ -9,7 +9,10 @@ on:
 jobs:
 
   build:
-    runs-on: ubuntu:22.04
+    runs-on: self-hosted
+    container:
+      # Runner docker image
+      image: ubuntu:22.04
     steps:
       # Checks-out repository under $GITHUB_WORKSPACE, so job can access it
       - uses: actions/checkout@v2
