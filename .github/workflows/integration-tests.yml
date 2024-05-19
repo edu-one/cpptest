@@ -33,6 +33,7 @@ jobs:
         run: pip3 install -q --user conan==2.* cmake==3.23.*
 
       - name: Detect default conan profile if not exists
+        shell: bash
         run: |
           [ -f "$HOME/.conan2/profiles/default" ] || conan profile detect
       
