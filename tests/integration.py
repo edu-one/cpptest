@@ -34,7 +34,7 @@ class TestTemplate(unittest.TestCase):
         self.assertTrue(os.path.exists(conan_home))
         self.assertTrue(os.path.isdir(conan_home))
 
-        template_path = os.path.join(conan_home, "templates", "command", "new", "dv_cpptest")
+        template_path = os.path.join(conan_home, "templates", "command", "new", "dv", "cpptest")
         if os.path.exists(template_path):
             print(f"Removing existing template: {template_path}")
             rmtree(template_path)
@@ -76,7 +76,7 @@ class TestTemplate(unittest.TestCase):
         ]
         self.check_dir_content(template_path, expected_files)
 
-        conan_new_command = ["conan", "new", "dv_cpptest", "-d", f"name={self.test_name}", "-d", f"version={self.test_version}"]
+        conan_new_command = ["conan", "new", "dv/cpptest", "-d", f"name={self.test_name}", "-d", f"version={self.test_version}"]
         run(conan_new_command, cwd=self.test_dir)
 
         # Expected file names
