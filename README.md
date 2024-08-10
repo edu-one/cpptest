@@ -10,7 +10,7 @@ conan config install git@github.com:valden/cpptest.git --type git
 ## Create new project from template
 ```
 mkdir my_project && cd my_project
-conan new dv/cpptest -d name=my_project -d version=0.1
+conan new dv/cpptest -d name=my_project
 ```
 
 # Development
