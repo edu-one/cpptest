@@ -117,4 +117,9 @@
         "ranges": "cpp",
         "span": "cpp"
     },
+    "[cmake]": {
+        "editor.defaultFormatter": "cheshirekow.cmake-format",
+        "editor.tabSize": 2,
+        "editor.insertSpaces": true
+    }
 }
