@@ -35,4 +35,4 @@ ctest --preset conan-debug
 
 
 >📝
-> Based on the template https://github.com/valden/cpptest
+> Based on the template https://github.com/edu-one/cpptest
