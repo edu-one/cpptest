@@ -32,7 +32,7 @@ python3 tests/integration.py -v                                 # verbose
 Prerequisites: `conan>=2`, `cmake>=3.23`, a C++20 toolchain. The suite is safe to run locally — it
 never touches your real `~/.conan2` (see "Isolated Conan home" below).
 
-Run the suite in a clean container (mirrors CI):
+Run the suite in a clean container (mirrors the Linux leg of CI; CI also runs a native Windows leg):
 
 ```bash
 docker build -t cpptest . && docker run --rm cpptest
