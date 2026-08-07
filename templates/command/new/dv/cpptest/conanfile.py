@@ -56,7 +56,7 @@ class {{name|capitalize}}Conan(ConanFile):
 
     def requirements(self):
         if self.options.with_tests:
-            self.test_requires("gtest/1.17.0")
+            self.test_requires("gtest/1.14.0")
 
     def package_id(self):
         del self.info.options.with_tests

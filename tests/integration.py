@@ -152,23 +152,10 @@ class TestTemplate(unittest.TestCase):
             self.assertIn("$<INSTALL_INTERFACE:include>", content)
             self.assertIn(f"install(TARGETS {self.test_name}", content)
 
-        # The recipe declares its own C++ standard (check_min_cppstd(self, 20) in
-        # validate(), self.settings.compiler.cppstd = 20 in configure()), but that
-        # only affects this package's own settings - Conan does not propagate a
-        # consumer's configure() overrides to its test_requires (confirmed empirically
-        # and via https://docs.conan.io/2/reference/conanfile/methods/requirements.html:
-        # dependency settings can only be steered via profiles/command line, not from
-        # the consumer recipe). A freshly detected default profile (e.g. msvc pins
-        # compiler.cppstd=14) therefore still fails to resolve gtest>=1.15 (needs C++17)
-        # unless an adequate cppstd is passed explicitly here - same as -s build_type
-        # below, this is just an explicit, adequate setting rather than trusting
-        # whatever the machine's default profile happened to detect.
-        cppstd_override = ["-s", "compiler.cppstd=20"]
-
         # Check if new project can be built & tested
         build_dir = os.path.join(self.test_dir, "build")
         # configure dependencies of the project
-        configure_command = ["conan", "install", ".", "--build=missing", "-s", "build_type=Release"] + cppstd_override
+        configure_command = ["conan", "install", ".", "--build=missing", "-s", "build_type=Release"]
         self.run_checked(configure_command, cwd=self.test_dir)
         # configure the project
         preset_name = "conan-release"
@@ -188,8 +175,8 @@ class TestTemplate(unittest.TestCase):
         # contains the library and the installed header, not just conaninfo.txt /
         # conanmanifest.txt.
         create_command = [
-            "conan", "create", ".", "--build=missing", "-s", "build_type=Release",
-        ] + cppstd_override + ["--format=json"]
+            "conan", "create", ".", "--build=missing", "-s", "build_type=Release", "--format=json",
+        ]
         create_result = self.run_checked(create_command, cwd=self.test_dir)
         create_info = json.loads(create_result.stdout)
         package_node = next(
