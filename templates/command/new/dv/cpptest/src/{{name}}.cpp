@@ -6,7 +6,7 @@
 
 #include <stdexcept>
 
-namespace dv::{{name}} {
+namespace dv::{{package_name}} {
 
 int factorial(int n) {
     if (n < 0)
@@ -16,4 +16,4 @@ int factorial(int n) {
     return n * factorial(n - 1);
 }
 
-} // namespace dv::{{name}}
+} // namespace dv::{{package_name}}

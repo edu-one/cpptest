@@ -2,11 +2,12 @@
 # ZHZhbGNodWtAZ21haWwuY29tCg==
 
 from conan import ConanFile
+from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, CMakeToolchain, CMakeDeps, cmake_layout
 
-class {{name|capitalize}}Conan(ConanFile):
-    minimum_conan_version = '2.2'
+required_conan_version = ">=2.2"
 
+class {{package_name|capitalize}}Conan(ConanFile):
     name = '{{name}}'
     version = '{{version|default("0.0.1", true)}}'
     license = "{{license|default("MIT", true)}}"
@@ -15,6 +16,8 @@ class {{name|capitalize}}Conan(ConanFile):
     url = "https://github.com/valden/{{name}}"
     description = "C++ test package with tests"
     topics = ("{{name}}", "algo", "playground")
+
+    package_type = "library"
 
     settings = "os", "compiler", "build_type", "arch"
     options = {"shared": [True, False],
@@ -33,6 +36,14 @@ class {{name|capitalize}}Conan(ConanFile):
         if self.settings.os == "Windows":
             del self.options.fPIC
 
+    def configure(self):
+        self.settings.compiler.cppstd = 20
+        if self.options.shared:
+            self.options.rm_safe("fPIC")
+
+    def validate(self):
+        check_min_cppstd(self, 20)
+
     def layout(self):
         cmake_layout(self)
 
@@ -41,12 +52,14 @@ class {{name|capitalize}}Conan(ConanFile):
         deps.generate()
         tc = CMakeToolchain(self)
         tc.variables["WITH_TESTS"] = bool(self.options.with_tests)
-        tc.variables["CMAKE_BUILD_TYPE"] = "%s" % self.settings.build_type
         tc.generate()
 
     def requirements(self):
         if self.options.with_tests:
-            self.requires("gtest/1.14.0")
+            self.test_requires("gtest/1.14.0")
+
+    def package_id(self):
+        del self.info.options.with_tests
 
     def build(self):
         cmake = CMake(self)

@@ -4,7 +4,7 @@ conan based c++ test projects template
 # Usage
 ## Installation
 ```
-rm -rf ~/.conan2/templates/command/new/dv/cpptest  # remove old template if exists
+rm -rf "$(conan config home)/templates/command/new/dv/cpptest"  # remove old template if exists
 conan config install git@github.com:valden/cpptest.git --type git
 ```
 ## Create new project from template
