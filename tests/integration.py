@@ -152,6 +152,16 @@ class TestTemplate(unittest.TestCase):
             self.assertIn("$<INSTALL_INTERFACE:include>", content)
             self.assertIn(f"install(TARGETS {self.test_name}", content)
 
+        # Check that the generated header uses dv::<name> for the include guard and
+        # namespace. The default test name has no '-', '.', or '+', so {{name}} and
+        # {{package_name}} (S4's sanitized identifier variable) render identically
+        # here -- confirming S4 didn't change this, unhyphenated, flow.
+        header_path = os.path.join(self.test_dir, "include", f"{self.test_name}.h")
+        with open(header_path, "r") as file:
+            content = file.read()
+            self.assertIn(f"__DV_INCLUDE_{self.test_name.upper()}_H__", content)
+            self.assertIn(f"namespace dv::{self.test_name} {{", content)
+
         # Check if new project can be built & tested
         build_dir = os.path.join(self.test_dir, "build")
         # configure dependencies of the project
@@ -201,6 +211,77 @@ class TestTemplate(unittest.TestCase):
             package_files <= metadata_only_files,
             f"Package folder contains only metadata files, no lib/headers: {package_files}",
         )
+
+        # Regression test for a confirmed defect (S4): a hyphenated Conan package
+        # name like "my-lib" used to be interpolated verbatim into C++/Python
+        # identifier positions (include guard, namespace, conanfile.py class name),
+        # producing invalid C++ syntax and a Python SyntaxError. The template now
+        # uses Conan's injected {{package_name}} Jinja variable in those spots,
+        # which sanitizes '-'/'.'/'+' to '_' (as_package_name), while {{name}}
+        # (still hyphenated) stays in file names and the actual Conan package name.
+        # Reuses this test's already-installed template and isolated Conan home;
+        # generated into its own subdirectory so it doesn't collide with the
+        # default-name project above.
+        hyphen_name = f"my-lib-{os.getpid()}"
+        hyphen_package_name = hyphen_name.replace("-", "_")
+        hyphen_dir = os.path.join(self.test_dir, "hyphen-case")
+        os.makedirs(hyphen_dir)
+
+        conan_new_hyphen_command = [
+            "conan", "new", "dv/cpptest", "-d", f"name={hyphen_name}", "-d", f"version={self.test_version}",
+        ]
+        self.run_checked(conan_new_hyphen_command, cwd=hyphen_dir)
+
+        # File names and the Conan package name itself stay hyphenated ({{name}}).
+        hyphen_header_src_path = os.path.join(hyphen_dir, "include", f"{hyphen_name}.h")
+        self.assertTrue(os.path.exists(hyphen_header_src_path), f"Header not found: {hyphen_header_src_path}")
+
+        # But the include guard and namespace must be sanitized, valid C++ identifiers.
+        with open(hyphen_header_src_path, "r") as file:
+            hyphen_header_content = file.read()
+        self.assertIn(f"__DV_INCLUDE_{hyphen_package_name.upper()}_H__", hyphen_header_content)
+        self.assertIn(f"namespace dv::{hyphen_package_name} {{", hyphen_header_content)
+        self.assertIn(f"}} // namespace dv::{hyphen_package_name}", hyphen_header_content)
+        self.assertNotIn("-", hyphen_header_content.split("*/", 1)[1])
+
+        # The conanfile.py class name must be a valid Python identifier too, while
+        # the actual `name =` field stays hyphenated (it's the Conan package name).
+        hyphen_conanfile_path = os.path.join(hyphen_dir, "conanfile.py")
+        with open(hyphen_conanfile_path, "r") as file:
+            hyphen_conanfile_content = file.read()
+        self.assertIn(f"class {hyphen_package_name.capitalize()}Conan(ConanFile):", hyphen_conanfile_content)
+        self.assertIn(f"name = '{hyphen_name}'", hyphen_conanfile_content)
+        # Would raise SyntaxError before S4's fix -- prove it's now valid Python.
+        compile(hyphen_conanfile_content, hyphen_conanfile_path, "exec")
+
+        # Build it end-to-end: configure + build + ctest, where it previously
+        # would have failed to even parse.
+        configure_command = ["conan", "install", ".", "--build=missing", "-s", "build_type=Release"]
+        self.run_checked(configure_command, cwd=hyphen_dir)
+        build_command = ["cmake", "--preset", preset_name]
+        self.run_checked(build_command, cwd=hyphen_dir)
+        build_command = ["cmake", "--build", "--preset", preset_name]
+        self.run_checked(build_command, cwd=hyphen_dir)
+        test_command = ["ctest", "--preset", preset_name]
+        self.run_checked(test_command, cwd=hyphen_dir)
+
+        # And conan create, mirroring the non-empty-package check above.
+        create_command = [
+            "conan", "create", ".", "--build=missing", "-s", "build_type=Release", "--format=json",
+        ]
+        hyphen_create_result = self.run_checked(create_command, cwd=hyphen_dir)
+        hyphen_create_info = json.loads(hyphen_create_result.stdout)
+        hyphen_package_node = next(
+            node for node in hyphen_create_info["graph"]["nodes"].values()
+            if node.get("name") == hyphen_name
+        )
+        hyphen_package_folder = hyphen_package_node["package_folder"]
+        self.assertTrue(os.path.isdir(hyphen_package_folder))
+        hyphen_header_pkg_path = os.path.join(hyphen_package_folder, "include", f"{hyphen_name}.h")
+        self.assertTrue(os.path.exists(hyphen_header_pkg_path))
+        hyphen_lib_dir = os.path.join(hyphen_package_folder, "lib")
+        self.assertTrue(os.path.isdir(hyphen_lib_dir))
+        self.assertTrue(os.listdir(hyphen_lib_dir))
 
     def check_dir_content(self, template_path, expected):
         for fs_item in expected:

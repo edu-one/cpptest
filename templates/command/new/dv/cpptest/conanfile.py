@@ -7,7 +7,7 @@ from conan.tools.cmake import CMake, CMakeToolchain, CMakeDeps, cmake_layout
 
 required_conan_version = ">=2.2"
 
-class {{name|capitalize}}Conan(ConanFile):
+class {{package_name|capitalize}}Conan(ConanFile):
     name = '{{name}}'
     version = '{{version|default("0.0.1", true)}}'
     license = "{{license|default("MIT", true)}}"
