@@ -20,24 +20,55 @@ class TestTemplate(unittest.TestCase):
         self.test_dir = os.path.join(TestTemplate.cwd(), "build", "tests", self.test_name)
         self.project_dir = os.path.join(TestTemplate.cwd(), "..")
         # Create the test directory (remove if already exists)
-        os.makedirs(self.test_dir, exist_ok=True)
+        if os.path.exists(self.test_dir):
+            rmtree(self.test_dir)
+        os.makedirs(self.test_dir)
+
+        # Point every subprocess at a throwaway Conan home instead of the developer's
+        # real ~/.conan2, so this test never reads or mutates it. Kept under the repo's
+        # own build/ tree rather than the OS temp dir: on Windows, a CONAN_HOME under
+        # %TEMP% escalates MSBuild's MSB8029 into a failed try-compile, breaking every
+        # from-source build at configure time.
+        self.conan_home = os.path.join(TestTemplate.cwd(), "build", "conan-home", self.test_name)
+        if os.path.exists(self.conan_home):
+            rmtree(self.conan_home)
+        os.makedirs(self.conan_home)
+        self.env = os.environ.copy()
+        self.env["CONAN_HOME"] = self.conan_home
+
+        # A freshly isolated Conan home has no default profile yet.
+        self.run_checked(["conan", "profile", "detect", "--force"])
 
     def tearDown(self):
         rmtree(self.test_dir)
+        rmtree(self.conan_home)
 
-    def test_crete_project(self):
+    def run_checked(self, command, cwd=None):
+        """Run a subprocess against the isolated Conan home and fail the test - with
+        the captured stdout/stderr in the failure message - if it exits non-zero."""
+        result = run(command, cwd=cwd, env=self.env, capture_output=True)
+        self.assertEqual(
+            result.returncode,
+            0,
+            "Command {} failed with exit code {}\n--- stdout ---\n{}\n--- stderr ---\n{}".format(
+                command,
+                result.returncode,
+                result.stdout.decode("utf-8", errors="replace"),
+                result.stderr.decode("utf-8", errors="replace"),
+            ),
+        )
+        return result
+
+    def test_create_project(self):
         # obtain conan config home
         conan_home_command = ["conan", "config", "home"]
-        result = run(conan_home_command, capture_output=True)
+        result = self.run_checked(conan_home_command)
         conan_home = result.stdout.decode("utf-8").strip()
         print(f"Conan home: {conan_home}")
         self.assertTrue(os.path.exists(conan_home))
         self.assertTrue(os.path.isdir(conan_home))
 
         template_path = os.path.join(conan_home, "templates", "command", "new", "dv", "cpptest")
-        if os.path.exists(template_path):
-            print(f"Removing existing template: {template_path}")
-            rmtree(template_path)
 
         # check that project dir is correctly set
         self.assertTrue(os.path.exists(self.project_dir))
@@ -54,7 +85,7 @@ class TestTemplate(unittest.TestCase):
 
         # Install the template
         install_template_command = ["conan", "config", "install", "."]
-        run(install_template_command, cwd=self.project_dir)
+        self.run_checked(install_template_command, cwd=self.project_dir)
         self.assertTrue(os.path.exists(template_path))
         self.assertTrue(os.path.isdir(template_path))
 
@@ -77,7 +108,7 @@ class TestTemplate(unittest.TestCase):
         self.check_dir_content(template_path, expected_files)
 
         conan_new_command = ["conan", "new", "dv/cpptest", "-d", f"name={self.test_name}", "-d", f"version={self.test_version}"]
-        run(conan_new_command, cwd=self.test_dir)
+        self.run_checked(conan_new_command, cwd=self.test_dir)
 
         # Expected file names
         expected_files = [
@@ -116,22 +147,22 @@ class TestTemplate(unittest.TestCase):
             self.assertIn(f"project({self.test_name} VERSION {self.test_version} LANGUAGES CXX)", content)
             self.assertIn(f"add_library({self.test_name} src/{self.test_name}.cpp)", content)
             self.assertIn(f"target_include_directories({self.test_name} PUBLIC include)", content)
-        
+
         # Check if new project can be built & tested
         build_dir = os.path.join(self.test_dir, "build")
         # configure dependencies of the project
         configure_command = ["conan", "install", ".", "--build=missing", "-s", "build_type=Release"]
-        run(configure_command, cwd=self.test_dir)
+        self.run_checked(configure_command, cwd=self.test_dir)
         # configure the project
         preset_name = "conan-release"
         build_command = ["cmake", "--preset", preset_name]
-        run(build_command, cwd=self.test_dir)
+        self.run_checked(build_command, cwd=self.test_dir)
         # build the project
         build_command = ["cmake", "--build", "--preset", preset_name]
-        run(build_command, cwd=self.test_dir)
+        self.run_checked(build_command, cwd=self.test_dir)
         # test the project
         test_command = ["ctest", "--preset", preset_name]
-        run(test_command, cwd=self.test_dir)
+        self.run_checked(test_command, cwd=self.test_dir)
 
     def check_dir_content(self, template_path, expected):
         for fs_item in expected:
