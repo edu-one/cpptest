@@ -159,7 +159,7 @@ class TestTemplate(unittest.TestCase):
         header_path = os.path.join(self.test_dir, "include", f"{self.test_name}.h")
         with open(header_path, "r") as file:
             content = file.read()
-            self.assertIn(f"__DV_INCLUDE_{self.test_name.upper()}_H__", content)
+            self.assertIn(f"DV_{self.test_name.upper()}_H_", content)
             self.assertIn(f"namespace dv::{self.test_name} {{", content)
 
         # Check if new project can be built & tested
@@ -239,7 +239,7 @@ class TestTemplate(unittest.TestCase):
         # But the include guard and namespace must be sanitized, valid C++ identifiers.
         with open(hyphen_header_src_path, "r") as file:
             hyphen_header_content = file.read()
-        self.assertIn(f"__DV_INCLUDE_{hyphen_package_name.upper()}_H__", hyphen_header_content)
+        self.assertIn(f"DV_{hyphen_package_name.upper()}_H_", hyphen_header_content)
         self.assertIn(f"namespace dv::{hyphen_package_name} {{", hyphen_header_content)
         self.assertIn(f"}} // namespace dv::{hyphen_package_name}", hyphen_header_content)
         self.assertNotIn("-", hyphen_header_content.split("*/", 1)[1])
