@@ -3,6 +3,9 @@
 
 # Project layout
 ```
+├── .github
+│   └── workflows
+│       └── unit-tests.yml
 ├── CMakeLists.txt
 ├── README.md
 ├── include      # Header files
@@ -10,6 +13,7 @@
 ├── src          # Source files
 │   └── {{name}}.cpp
 ├── tests        # Various tests
+│   ├── CMakeLists.txt
 │   ├── integration
 │   ├── performance
 │   └── unit
@@ -23,7 +27,10 @@ pip install -r requirements.txt
 
 # Build
 ```bash
-conan install . -pr debug --build=missing
+conan install . -s build_type=Debug --build=missing
+# Configure preset is generator-dependent:
+#   Windows (multi-config generator): cmake --preset conan-default
+#   Linux (single-config generator):  cmake --preset conan-debug
 cmake --preset conan-default
 cmake --build --preset conan-debug
 ```
