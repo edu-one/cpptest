@@ -1,4 +1,4 @@
-# Copyright (C) Denys Valchuk - All Rights Reserved
+# Copyright (C) Denys Valchuk. Licensed under the MIT License (see LICENSE).
 # ZHZhbGNodWtAZ21haWwuY29tCg==
 
 import json
