@@ -1,5 +1,5 @@
-C++ small test projects template
-===============================
+conan based c++ test projects template
+======================================
 
 # Usage
 ## Installation
