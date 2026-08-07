@@ -3,12 +3,20 @@
 
 import json
 import os
+import sys
 import unittest
 from subprocess import run
 from shutil import rmtree
 
 
 class TestTemplate(unittest.TestCase):
+
+    # cmake --preset selection is generator-dependent: Windows gets a multi-config VS
+    # generator, where the *configure* preset is "conan-default" and only the
+    # *build*/*test* presets are "conan-release"; Linux's single-config generator uses
+    # "conan-release" for all three.
+    CONFIGURE_PRESET = "conan-default" if sys.platform == "win32" else "conan-release"
+    BUILD_PRESET = "conan-release"
 
     @classmethod
     def cwd(cls):
@@ -40,6 +48,17 @@ class TestTemplate(unittest.TestCase):
         # A freshly isolated Conan home has no default profile yet.
         self.run_checked(["conan", "profile", "detect", "--force"])
 
+        # Every test below needs the template installed into the isolated Conan home,
+        # so do it once here rather than duplicating it in each test.
+        self.run_checked(["conan", "config", "install", "."], cwd=self.project_dir)
+        self.template_path = os.path.join(
+            self.conan_home, "templates", "command", "new", "dv", "cpptest"
+        )
+
+        self.hyphen_name = f"my-lib-{pid}"
+        self.hyphen_package_name = self.hyphen_name.replace("-", "_")
+        self.hyphen_dir = os.path.join(self.test_dir, "hyphen-case")
+
     def tearDown(self):
         rmtree(self.test_dir)
         rmtree(self.conan_home)
@@ -60,16 +79,78 @@ class TestTemplate(unittest.TestCase):
         )
         return result
 
-    def test_create_project(self):
-        # obtain conan config home
+    def check_dir_content(self, path, expected):
+        for fs_item in expected:
+            item_path = os.path.join(path, fs_item)
+            self.assertTrue(os.path.exists(item_path), f"FS item {fs_item} not found in {path}")
+
+    # ---- shared helpers for the generate/configure/build/ctest/create sequence ----
+
+    def generate_project(self, name, version, target_dir):
+        """Run `conan new dv/cpptest` for the given name/version into target_dir."""
+        os.makedirs(target_dir, exist_ok=True)
+        conan_new_command = [
+            "conan", "new", "dv/cpptest", "-d", f"name={name}", "-d", f"version={version}",
+        ]
+        self.run_checked(conan_new_command, cwd=target_dir)
+
+    def build_and_test_project(self, project_dir):
+        """Configure, build, and ctest a generated project, using the generator-aware
+        configure preset (see CONFIGURE_PRESET)."""
+        configure_command = ["conan", "install", ".", "--build=missing", "-s", "build_type=Release"]
+        self.run_checked(configure_command, cwd=project_dir)
+        self.run_checked(["cmake", "--preset", self.CONFIGURE_PRESET], cwd=project_dir)
+        self.run_checked(["cmake", "--build", "--preset", self.BUILD_PRESET], cwd=project_dir)
+        self.run_checked(["ctest", "--preset", self.BUILD_PRESET], cwd=project_dir)
+
+    def create_package(self, name, project_dir):
+        """Run `conan create` for the given package name and return its package_folder."""
+        create_command = [
+            "conan", "create", ".", "--build=missing", "-s", "build_type=Release", "--format=json",
+        ]
+        create_result = self.run_checked(create_command, cwd=project_dir)
+        create_info = json.loads(create_result.stdout)
+        package_node = next(
+            node for node in create_info["graph"]["nodes"].values()
+            if node.get("name") == name
+        )
+        return package_node["package_folder"]
+
+    def assert_package_nonempty(self, package_folder, name):
+        """Regression check for a confirmed defect: `conan create` used to exit 0 while
+        producing an EMPTY package (missing install() rules in CMakeLists.txt meant
+        cmake.install() copied nothing, even though package_info() advertised a
+        library). Assert the package actually contains the library and the installed
+        header, not just conaninfo.txt / conanmanifest.txt."""
+        self.assertTrue(
+            os.path.isdir(package_folder), f"Package folder does not exist: {package_folder}"
+        )
+
+        header_path = os.path.join(package_folder, "include", f"{name}.h")
+        self.assertTrue(os.path.exists(header_path), f"Installed header not found: {header_path}")
+
+        lib_dir = os.path.join(package_folder, "lib")
+        self.assertTrue(os.path.isdir(lib_dir), f"lib/ directory not found in package: {package_folder}")
+        self.assertTrue(os.listdir(lib_dir), f"No library file found in {lib_dir}")
+
+        metadata_only_files = {"conaninfo.txt", "conanmanifest.txt"}
+        package_files = set(os.listdir(package_folder))
+        self.assertFalse(
+            package_files <= metadata_only_files,
+            f"Package folder contains only metadata files, no lib/headers: {package_files}",
+        )
+
+    # ---- tests ----
+
+    def test_template_installation(self):
+        """`conan config home` resolves inside the isolated home, the repo's own
+        top-level layout is intact, and the template was installed there with all
+        expected files."""
         conan_home_command = ["conan", "config", "home"]
         result = self.run_checked(conan_home_command)
         conan_home = result.stdout.decode("utf-8").strip()
-        print(f"Conan home: {conan_home}")
         self.assertTrue(os.path.exists(conan_home))
         self.assertTrue(os.path.isdir(conan_home))
-
-        template_path = os.path.join(conan_home, "templates", "command", "new", "dv", "cpptest")
 
         # check that project dir is correctly set
         self.assertTrue(os.path.exists(self.project_dir))
@@ -84,11 +165,8 @@ class TestTemplate(unittest.TestCase):
         ]
         self.check_dir_content(self.project_dir, expected_fs_items)
 
-        # Install the template
-        install_template_command = ["conan", "config", "install", "."]
-        self.run_checked(install_template_command, cwd=self.project_dir)
-        self.assertTrue(os.path.exists(template_path))
-        self.assertTrue(os.path.isdir(template_path))
+        self.assertTrue(os.path.exists(self.template_path))
+        self.assertTrue(os.path.isdir(self.template_path))
 
         # check if the template is installed
         expected_files = [
@@ -106,10 +184,13 @@ class TestTemplate(unittest.TestCase):
             "tests/unit/CMakeLists.txt",
             "tests/unit/{{name}}_test.cpp",
         ]
-        self.check_dir_content(template_path, expected_files)
+        self.check_dir_content(self.template_path, expected_files)
 
-        conan_new_command = ["conan", "new", "dv/cpptest", "-d", f"name={self.test_name}", "-d", f"version={self.test_version}"]
-        self.run_checked(conan_new_command, cwd=self.test_dir)
+    def test_default_name_generation(self):
+        """Generating a project with a plain (non-hyphenated) name produces the
+        expected file set, and conanfile.py / CMakeLists.txt / header content are
+        correctly interpolated."""
+        self.generate_project(self.test_name, self.test_version, self.test_dir)
 
         # Expected file names
         expected_files = [
@@ -130,8 +211,6 @@ class TestTemplate(unittest.TestCase):
             ".vscode/settings.json",
             ".vscode/launch.json",
         ]
-
-        # Check if expected files exist
         self.check_dir_content(self.test_dir, expected_files)
 
         # Check if the conanfile.py contains the correct name and version
@@ -162,131 +241,63 @@ class TestTemplate(unittest.TestCase):
             self.assertIn(f"DV_{self.test_name.upper()}_H_", content)
             self.assertIn(f"namespace dv::{self.test_name} {{", content)
 
-        # Check if new project can be built & tested
-        build_dir = os.path.join(self.test_dir, "build")
-        # configure dependencies of the project
-        configure_command = ["conan", "install", ".", "--build=missing", "-s", "build_type=Release"]
-        self.run_checked(configure_command, cwd=self.test_dir)
-        # configure the project
-        preset_name = "conan-release"
-        build_command = ["cmake", "--preset", preset_name]
-        self.run_checked(build_command, cwd=self.test_dir)
-        # build the project
-        build_command = ["cmake", "--build", "--preset", preset_name]
-        self.run_checked(build_command, cwd=self.test_dir)
-        # test the project
-        test_command = ["ctest", "--preset", preset_name]
-        self.run_checked(test_command, cwd=self.test_dir)
+    def test_default_name_build_and_test(self):
+        """A generated default-name project configures, builds, and passes ctest
+        end-to-end (using the generator-aware configure preset)."""
+        self.generate_project(self.test_name, self.test_version, self.test_dir)
+        self.build_and_test_project(self.test_dir)
 
-        # Regression test for a confirmed defect: `conan create` used to exit 0 while
-        # producing an EMPTY package (missing install() rules in CMakeLists.txt meant
-        # cmake.install() copied nothing, even though package_info() advertised a
-        # library). Run the real packaging flow and assert the package actually
-        # contains the library and the installed header, not just conaninfo.txt /
-        # conanmanifest.txt.
-        create_command = [
-            "conan", "create", ".", "--build=missing", "-s", "build_type=Release", "--format=json",
-        ]
-        create_result = self.run_checked(create_command, cwd=self.test_dir)
-        create_info = json.loads(create_result.stdout)
-        package_node = next(
-            node for node in create_info["graph"]["nodes"].values()
-            if node.get("name") == self.test_name
-        )
-        package_folder = package_node["package_folder"]
-        self.assertTrue(
-            os.path.isdir(package_folder), f"Package folder does not exist: {package_folder}"
-        )
+    def test_default_name_conan_create(self):
+        """`conan create` packages a default-name project with a non-empty package."""
+        self.generate_project(self.test_name, self.test_version, self.test_dir)
+        package_folder = self.create_package(self.test_name, self.test_dir)
+        self.assert_package_nonempty(package_folder, self.test_name)
 
-        header_path = os.path.join(package_folder, "include", f"{self.test_name}.h")
-        self.assertTrue(os.path.exists(header_path), f"Installed header not found: {header_path}")
-
-        lib_dir = os.path.join(package_folder, "lib")
-        self.assertTrue(os.path.isdir(lib_dir), f"lib/ directory not found in package: {package_folder}")
-        self.assertTrue(os.listdir(lib_dir), f"No library file found in {lib_dir}")
-
-        metadata_only_files = {"conaninfo.txt", "conanmanifest.txt"}
-        package_files = set(os.listdir(package_folder))
-        self.assertFalse(
-            package_files <= metadata_only_files,
-            f"Package folder contains only metadata files, no lib/headers: {package_files}",
-        )
-
-        # Regression test for a confirmed defect (S4): a hyphenated Conan package
-        # name like "my-lib" used to be interpolated verbatim into C++/Python
-        # identifier positions (include guard, namespace, conanfile.py class name),
-        # producing invalid C++ syntax and a Python SyntaxError. The template now
-        # uses Conan's injected {{package_name}} Jinja variable in those spots,
-        # which sanitizes '-'/'.'/'+' to '_' (as_package_name), while {{name}}
-        # (still hyphenated) stays in file names and the actual Conan package name.
-        # Reuses this test's already-installed template and isolated Conan home;
-        # generated into its own subdirectory so it doesn't collide with the
-        # default-name project above.
-        hyphen_name = f"my-lib-{os.getpid()}"
-        hyphen_package_name = hyphen_name.replace("-", "_")
-        hyphen_dir = os.path.join(self.test_dir, "hyphen-case")
-        os.makedirs(hyphen_dir)
-
-        conan_new_hyphen_command = [
-            "conan", "new", "dv/cpptest", "-d", f"name={hyphen_name}", "-d", f"version={self.test_version}",
-        ]
-        self.run_checked(conan_new_hyphen_command, cwd=hyphen_dir)
+    def test_hyphenated_name_generation(self):
+        """Regression test for a confirmed defect (S4): a hyphenated Conan package
+        name like "my-lib" used to be interpolated verbatim into C++/Python
+        identifier positions (include guard, namespace, conanfile.py class name),
+        producing invalid C++ syntax and a Python SyntaxError. The template now
+        uses Conan's injected {{package_name}} Jinja variable in those spots,
+        which sanitizes '-'/'.'/'+' to '_' (as_package_name), while {{name}}
+        (still hyphenated) stays in file names and the actual Conan package name."""
+        self.generate_project(self.hyphen_name, self.test_version, self.hyphen_dir)
 
         # File names and the Conan package name itself stay hyphenated ({{name}}).
-        hyphen_header_src_path = os.path.join(hyphen_dir, "include", f"{hyphen_name}.h")
+        hyphen_header_src_path = os.path.join(self.hyphen_dir, "include", f"{self.hyphen_name}.h")
         self.assertTrue(os.path.exists(hyphen_header_src_path), f"Header not found: {hyphen_header_src_path}")
 
         # But the include guard and namespace must be sanitized, valid C++ identifiers.
         with open(hyphen_header_src_path, "r") as file:
             hyphen_header_content = file.read()
-        self.assertIn(f"DV_{hyphen_package_name.upper()}_H_", hyphen_header_content)
-        self.assertIn(f"namespace dv::{hyphen_package_name} {{", hyphen_header_content)
-        self.assertIn(f"}} // namespace dv::{hyphen_package_name}", hyphen_header_content)
+        self.assertIn(f"DV_{self.hyphen_package_name.upper()}_H_", hyphen_header_content)
+        self.assertIn(f"namespace dv::{self.hyphen_package_name} {{", hyphen_header_content)
+        self.assertIn(f"}} // namespace dv::{self.hyphen_package_name}", hyphen_header_content)
         self.assertNotIn("-", hyphen_header_content.split("*/", 1)[1])
 
         # The conanfile.py class name must be a valid Python identifier too, while
         # the actual `name =` field stays hyphenated (it's the Conan package name).
-        hyphen_conanfile_path = os.path.join(hyphen_dir, "conanfile.py")
+        hyphen_conanfile_path = os.path.join(self.hyphen_dir, "conanfile.py")
         with open(hyphen_conanfile_path, "r") as file:
             hyphen_conanfile_content = file.read()
-        self.assertIn(f"class {hyphen_package_name.capitalize()}Conan(ConanFile):", hyphen_conanfile_content)
-        self.assertIn(f"name = '{hyphen_name}'", hyphen_conanfile_content)
+        self.assertIn(
+            f"class {self.hyphen_package_name.capitalize()}Conan(ConanFile):", hyphen_conanfile_content
+        )
+        self.assertIn(f"name = '{self.hyphen_name}'", hyphen_conanfile_content)
         # Would raise SyntaxError before S4's fix -- prove it's now valid Python.
         compile(hyphen_conanfile_content, hyphen_conanfile_path, "exec")
 
-        # Build it end-to-end: configure + build + ctest, where it previously
-        # would have failed to even parse.
-        configure_command = ["conan", "install", ".", "--build=missing", "-s", "build_type=Release"]
-        self.run_checked(configure_command, cwd=hyphen_dir)
-        build_command = ["cmake", "--preset", preset_name]
-        self.run_checked(build_command, cwd=hyphen_dir)
-        build_command = ["cmake", "--build", "--preset", preset_name]
-        self.run_checked(build_command, cwd=hyphen_dir)
-        test_command = ["ctest", "--preset", preset_name]
-        self.run_checked(test_command, cwd=hyphen_dir)
+    def test_hyphenated_name_build_and_test(self):
+        """Build it end-to-end: configure + build + ctest, where it previously
+        would have failed to even parse (before S4's sanitization fix)."""
+        self.generate_project(self.hyphen_name, self.test_version, self.hyphen_dir)
+        self.build_and_test_project(self.hyphen_dir)
 
-        # And conan create, mirroring the non-empty-package check above.
-        create_command = [
-            "conan", "create", ".", "--build=missing", "-s", "build_type=Release", "--format=json",
-        ]
-        hyphen_create_result = self.run_checked(create_command, cwd=hyphen_dir)
-        hyphen_create_info = json.loads(hyphen_create_result.stdout)
-        hyphen_package_node = next(
-            node for node in hyphen_create_info["graph"]["nodes"].values()
-            if node.get("name") == hyphen_name
-        )
-        hyphen_package_folder = hyphen_package_node["package_folder"]
-        self.assertTrue(os.path.isdir(hyphen_package_folder))
-        hyphen_header_pkg_path = os.path.join(hyphen_package_folder, "include", f"{hyphen_name}.h")
-        self.assertTrue(os.path.exists(hyphen_header_pkg_path))
-        hyphen_lib_dir = os.path.join(hyphen_package_folder, "lib")
-        self.assertTrue(os.path.isdir(hyphen_lib_dir))
-        self.assertTrue(os.listdir(hyphen_lib_dir))
-
-    def check_dir_content(self, template_path, expected):
-        for fs_item in expected:
-            path = os.path.join(template_path, fs_item)
-            self.assertTrue(os.path.exists(path), f"FS item {fs_item} not found in {template_path}")
+    def test_hyphenated_name_conan_create(self):
+        """`conan create`, mirroring the default-name non-empty-package check."""
+        self.generate_project(self.hyphen_name, self.test_version, self.hyphen_dir)
+        package_folder = self.create_package(self.hyphen_name, self.hyphen_dir)
+        self.assert_package_nonempty(package_folder, self.hyphen_name)
 
 
 if __name__ == "__main__":
