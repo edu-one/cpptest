@@ -22,6 +22,54 @@ class TestTemplate(unittest.TestCase):
     def cwd(cls):
         return os.path.dirname(os.path.abspath(__file__))
 
+    @classmethod
+    def setUpClass(cls):
+        # Point every subprocess at a throwaway Conan home instead of the developer's
+        # real ~/.conan2, so this suite never reads or mutates it. Kept under the
+        # repo's own build/ tree rather than the OS temp dir: on Windows, a
+        # CONAN_HOME under %TEMP% escalates MSBuild's MSB8029 into a failed
+        # try-compile, breaking every from-source build at configure time.
+        #
+        # Scoped to the whole class (not per-test): with --build=missing and no
+        # ConanCenter prebuilt matching the detected profile for gtest/1.14.0,
+        # wiping this per test forced gtest to compile from source in every one
+        # of the tests that run `conan install`/`conan create`, instead of once
+        # for the whole suite.
+        pid = os.getpid()
+        cls.conan_home = os.path.join(cls.cwd(), "build", "conan-home", f"suite{pid}")
+        if os.path.exists(cls.conan_home):
+            rmtree(cls.conan_home)
+        os.makedirs(cls.conan_home)
+        cls.env = os.environ.copy()
+        cls.env["CONAN_HOME"] = cls.conan_home
+
+        # A freshly isolated Conan home has no default profile yet.
+        cls._run_class_setup_command(["conan", "profile", "detect", "--force"])
+
+        # Every test below needs the template installed into the isolated Conan home,
+        # so do it once here rather than duplicating it in each test.
+        project_dir = os.path.join(cls.cwd(), "..")
+        cls._run_class_setup_command(["conan", "config", "install", "."], cwd=project_dir)
+
+    @classmethod
+    def tearDownClass(cls):
+        rmtree(cls.conan_home)
+
+    @classmethod
+    def _run_class_setup_command(cls, command, cwd=None):
+        """Like run_checked, but usable from setUpClass/tearDownClass where no
+        TestCase instance (and thus no self.assertEqual) exists yet."""
+        result = run(command, cwd=cwd, env=cls.env, capture_output=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                "Command {} failed with exit code {}\n--- stdout ---\n{}\n--- stderr ---\n{}".format(
+                    command,
+                    result.returncode,
+                    result.stdout.decode("utf-8", errors="replace"),
+                    result.stderr.decode("utf-8", errors="replace"),
+                )
+            )
+
     def setUp(self):
         pid = os.getpid()
         self.test_name = f"stubname{pid}"
@@ -33,24 +81,8 @@ class TestTemplate(unittest.TestCase):
             rmtree(self.test_dir)
         os.makedirs(self.test_dir)
 
-        # Point every subprocess at a throwaway Conan home instead of the developer's
-        # real ~/.conan2, so this test never reads or mutates it. Kept under the repo's
-        # own build/ tree rather than the OS temp dir: on Windows, a CONAN_HOME under
-        # %TEMP% escalates MSBuild's MSB8029 into a failed try-compile, breaking every
-        # from-source build at configure time.
-        self.conan_home = os.path.join(TestTemplate.cwd(), "build", "conan-home", self.test_name)
-        if os.path.exists(self.conan_home):
-            rmtree(self.conan_home)
-        os.makedirs(self.conan_home)
-        self.env = os.environ.copy()
-        self.env["CONAN_HOME"] = self.conan_home
-
-        # A freshly isolated Conan home has no default profile yet.
-        self.run_checked(["conan", "profile", "detect", "--force"])
-
-        # Every test below needs the template installed into the isolated Conan home,
-        # so do it once here rather than duplicating it in each test.
-        self.run_checked(["conan", "config", "install", "."], cwd=self.project_dir)
+        # self.conan_home/self.env resolve to the class attributes set in
+        # setUpClass (shared Conan package cache for the whole suite run).
         self.template_path = os.path.join(
             self.conan_home, "templates", "command", "new", "dv", "cpptest"
         )
@@ -61,7 +93,6 @@ class TestTemplate(unittest.TestCase):
 
     def tearDown(self):
         rmtree(self.test_dir)
-        rmtree(self.conan_home)
 
     def run_checked(self, command, cwd=None):
         """Run a subprocess against the isolated Conan home and fail the test - with

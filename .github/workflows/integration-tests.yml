@@ -35,10 +35,13 @@ jobs:
       - name: Install conan && cmake
         run: pip3 install -q --user conan==2.* cmake==3.23.*
 
+      # Smoke check only: confirms conan is installed and importable. The test
+      # suite (tests/integration.py) points every subprocess at its own isolated
+      # CONAN_HOME, so this default-home profile is never read by the tests.
       - name: Detect default conan profile if not exists
         shell: bash
         run: |
           [ -f "$HOME/.conan2/profiles/default" ] || conan profile detect
-      
+
       - name: Run tests
         run: python3 tests/integration.py

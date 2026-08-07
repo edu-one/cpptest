@@ -20,7 +20,9 @@ WORKDIR /opt/cpptest
 # Copy the source code into the container
 COPY . .
 
-# Detect default conan profile
+# Smoke check only: confirms conan is installed and importable in the image.
+# The test suite (tests/integration.py) points every subprocess at its own
+# isolated CONAN_HOME, so this default-home profile is never read by the tests.
 RUN conan profile detect
 
 # run tests script
