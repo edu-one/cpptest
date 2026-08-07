@@ -12,32 +12,63 @@ permissions:
 jobs:
 
   build:
-    runs-on: ubuntu-latest
-    container:
-      # Runner docker image
-      image: ubuntu:22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            # Runner docker image. Windows Actions runners can't run Linux
+            # containers, so this is only set for the Linux leg; '' below
+            # means "run directly on the host" (see actions/runner#265).
+            container: 'ubuntu:22.04'
+          - os: windows-latest
+            container: ''
+    runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     steps:
       # Checks-out repository under $GITHUB_WORKSPACE, so job can access it
       - uses: actions/checkout@v4
 
       - name: Install essential packages for C++ development
+        if: runner.os == 'Linux'
         run: |
           apt-get update -qq
           apt-get install -y build-essential
 
       - name: Install python3
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           echo "$HOME/.local/bin" >> $GITHUB_PATH
           apt-get update -qq
           apt-get install -y python3 python3-pip
 
-      - name: Install conan && cmake
-        run: pip3 install -q --user conan==2.* cmake==3.23.*
+      # windows-latest ships MSVC (C++20-capable) and a system Python already,
+      # but pin the interpreter explicitly for the same determinism reason
+      # conan/cmake are pinned below, rather than relying on whatever image default.
+      - name: Set up Python
+        if: runner.os == 'Windows'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
 
-      # Smoke check only: confirms conan is installed and importable. The test
-      # suite (tests/integration.py) points every subprocess at its own isolated
-      # CONAN_HOME, so this default-home profile is never read by the tests.
+      - name: Install conan && cmake (Linux)
+        if: runner.os == 'Linux'
+        run: pip3 install -q --no-cache-dir --user conan==2.* cmake==3.23.*
+
+      # No --user/PATH dance here: unlike Ubuntu's system Python, the
+      # setup-python-provisioned interpreter has no PEP668/permission
+      # restriction, so pip installs land somewhere already on PATH.
+      - name: Install conan && cmake (Windows)
+        if: runner.os == 'Windows'
+        run: pip install -q --no-cache-dir conan==2.* cmake==3.23.*
+
+      # Smoke check only: confirms conan is installed and importable in the
+      # environment. The test suite (tests/integration.py) points every
+      # subprocess at its own isolated CONAN_HOME (kept under the repo's
+      # build/ tree, not the OS temp dir -- see integration.py for why that
+      # matters on Windows), so this default-home profile is never read by
+      # the tests.
       - name: Detect default conan profile if not exists
         shell: bash
         run: |
