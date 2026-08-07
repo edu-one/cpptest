@@ -27,7 +27,7 @@ jobs:
     container: ${{ matrix.container }}
     steps:
       # Checks-out repository under $GITHUB_WORKSPACE, so job can access it
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install essential packages for C++ development
         if: runner.os == 'Linux'
