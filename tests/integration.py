@@ -1,6 +1,7 @@
 # Copyright (C) Denys Valchuk - All Rights Reserved
 # ZHZhbGNodWtAZ21haWwuY29tCg==
 
+import json
 import os
 import unittest
 from subprocess import run
@@ -146,12 +147,28 @@ class TestTemplate(unittest.TestCase):
             content = file.read()
             self.assertIn(f"project({self.test_name} VERSION {self.test_version} LANGUAGES CXX)", content)
             self.assertIn(f"add_library({self.test_name} src/{self.test_name}.cpp)", content)
-            self.assertIn(f"target_include_directories({self.test_name} PUBLIC include)", content)
+            self.assertIn(f"target_include_directories({self.test_name} PUBLIC", content)
+            self.assertIn("$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>", content)
+            self.assertIn("$<INSTALL_INTERFACE:include>", content)
+            self.assertIn(f"install(TARGETS {self.test_name}", content)
+
+        # The recipe declares its own C++ standard (check_min_cppstd(self, 20) in
+        # validate(), self.settings.compiler.cppstd = 20 in configure()), but that
+        # only affects this package's own settings - Conan does not propagate a
+        # consumer's configure() overrides to its test_requires (confirmed empirically
+        # and via https://docs.conan.io/2/reference/conanfile/methods/requirements.html:
+        # dependency settings can only be steered via profiles/command line, not from
+        # the consumer recipe). A freshly detected default profile (e.g. msvc pins
+        # compiler.cppstd=14) therefore still fails to resolve gtest>=1.15 (needs C++17)
+        # unless an adequate cppstd is passed explicitly here - same as -s build_type
+        # below, this is just an explicit, adequate setting rather than trusting
+        # whatever the machine's default profile happened to detect.
+        cppstd_override = ["-s", "compiler.cppstd=20"]
 
         # Check if new project can be built & tested
         build_dir = os.path.join(self.test_dir, "build")
         # configure dependencies of the project
-        configure_command = ["conan", "install", ".", "--build=missing", "-s", "build_type=Release"]
+        configure_command = ["conan", "install", ".", "--build=missing", "-s", "build_type=Release"] + cppstd_override
         self.run_checked(configure_command, cwd=self.test_dir)
         # configure the project
         preset_name = "conan-release"
@@ -163,6 +180,40 @@ class TestTemplate(unittest.TestCase):
         # test the project
         test_command = ["ctest", "--preset", preset_name]
         self.run_checked(test_command, cwd=self.test_dir)
+
+        # Regression test for a confirmed defect: `conan create` used to exit 0 while
+        # producing an EMPTY package (missing install() rules in CMakeLists.txt meant
+        # cmake.install() copied nothing, even though package_info() advertised a
+        # library). Run the real packaging flow and assert the package actually
+        # contains the library and the installed header, not just conaninfo.txt /
+        # conanmanifest.txt.
+        create_command = [
+            "conan", "create", ".", "--build=missing", "-s", "build_type=Release",
+        ] + cppstd_override + ["--format=json"]
+        create_result = self.run_checked(create_command, cwd=self.test_dir)
+        create_info = json.loads(create_result.stdout)
+        package_node = next(
+            node for node in create_info["graph"]["nodes"].values()
+            if node.get("name") == self.test_name
+        )
+        package_folder = package_node["package_folder"]
+        self.assertTrue(
+            os.path.isdir(package_folder), f"Package folder does not exist: {package_folder}"
+        )
+
+        header_path = os.path.join(package_folder, "include", f"{self.test_name}.h")
+        self.assertTrue(os.path.exists(header_path), f"Installed header not found: {header_path}")
+
+        lib_dir = os.path.join(package_folder, "lib")
+        self.assertTrue(os.path.isdir(lib_dir), f"lib/ directory not found in package: {package_folder}")
+        self.assertTrue(os.listdir(lib_dir), f"No library file found in {lib_dir}")
+
+        metadata_only_files = {"conaninfo.txt", "conanmanifest.txt"}
+        package_files = set(os.listdir(package_folder))
+        self.assertFalse(
+            package_files <= metadata_only_files,
+            f"Package folder contains only metadata files, no lib/headers: {package_files}",
+        )
 
     def check_dir_content(self, template_path, expected):
         for fs_item in expected:
