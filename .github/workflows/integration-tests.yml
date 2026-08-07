@@ -6,10 +6,13 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: read
+
 jobs:
 
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     container:
       # Runner docker image
       image: ubuntu:22.04
